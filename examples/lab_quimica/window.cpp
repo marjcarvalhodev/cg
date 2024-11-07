@@ -37,9 +37,51 @@ void Window::onPaintUI() {
 
   // Exibir os elementos químicos disponíveis
   ImGui::Text("Elementos Químicos Disponíveis:");
-  for (auto &element : m_elements) {
-    if (ImGui::Button(element.symbol.c_str(), ImVec2(100, 100))) {
-      addToBeaker(element); // Adicionar elemento ao recipiente
+  auto drawList = ImGui::GetWindowDrawList();
+
+  float elementWidth = 100.0f;  // Largura do frasco
+  float elementHeight = 100.0f; // Altura do frasco
+  float spacing = 10.0f;        // Espaçamento entre frascos
+
+  for (size_t i = 0; i < m_elements.size(); ++i) {
+    Element &element = m_elements[i];
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+
+    // Define o tamanho do "botão"
+    ImVec2 size = ImVec2(elementWidth, elementHeight);
+
+    // Adiciona um botão invisível para capturar cliques
+    ImGui::InvisibleButton(("Erlenmeyer" + std::to_string(i)).c_str(), size);
+    if (ImGui::IsItemClicked()) {
+      addToBeaker(element);
+    }
+
+    // Calcula as coordenadas para um "frasco de Erlenmeyer" básico
+    ImVec2 topCenter = ImVec2(pos.x + size.x / 2, pos.y);
+    ImVec2 bottomLeft = ImVec2(pos.x, pos.y + size.y);
+    ImVec2 bottomRight = ImVec2(pos.x + size.x, pos.y + size.y);
+    ImVec2 neckLeft = ImVec2(pos.x + size.x * 0.4f, pos.y + size.y * 0.3f);
+    ImVec2 neckRight = ImVec2(pos.x + size.x * 0.6f, pos.y + size.y * 0.3f);
+
+    // Desenha o frasco em duas partes: corpo e pescoço
+    drawList->AddTriangleFilled(topCenter, neckLeft, neckRight,
+                                ImColor(element.color));
+    drawList->AddQuadFilled(neckLeft, neckRight, bottomRight, bottomLeft,
+                            ImColor(element.color));
+
+    // Desenha o símbolo do elemento sobre o frasco
+    ImVec2 textSize = ImGui::CalcTextSize(element.symbol.c_str());
+    ImVec2 textPos = ImVec2(pos.x + (size.x - textSize.x) / 2,
+                            pos.y + (size.y - textSize.y) / 2);
+    drawList->AddText(textPos, ImColor(255, 255, 255), element.symbol.c_str());
+
+    // Verifica se há espaço suficiente para colocar o próximo botão na mesma
+    // linha
+    float nextPosX = pos.x + elementWidth + spacing;
+    if (nextPosX + elementWidth > ImGui::GetWindowPos().x + appWindowWidth) {
+      ImGui::NewLine(); // Move para a próxima linha
+    } else {
+      ImGui::SameLine(); // Mantém na mesma linha
     }
   }
 
