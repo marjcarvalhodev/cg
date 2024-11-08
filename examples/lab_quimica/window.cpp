@@ -35,65 +35,87 @@ void Window::onPaintUI() {
   ImGui::Begin("Simulação de Laboratório Químico", nullptr,
                ImGuiWindowFlags_NoResize);
 
-  // Exibir os elementos químicos disponíveis
+  // Calcula o centro horizontal da janela
+  float centerX = appWindowWidth / 2.0f;
+
+  // Título: "Elementos Químicos Disponíveis" centralizado horizontalmente
+  ImGui::SetCursorPosX(
+      centerX - ImGui::CalcTextSize("Elementos Químicos Disponíveis:").x / 2);
   ImGui::Text("Elementos Químicos Disponíveis:");
+
+  ImGui::Spacing(); // Espaçamento entre o título e os elementos
+
+  // Calcula a largura total para centralizar os elementos
+  float elementWidth = 100.0f;
+  float elementHeight = 100.0f;
+  float spacing = 20.0f;
+
+  float totalWidth =
+      (m_elements.size() * elementWidth) + ((m_elements.size() - 1) * spacing);
+  float startPosX = centerX - totalWidth / 2;
+
+  // Posiciona o cursor no início da linha para centralizar horizontalmente
+  ImGui::SetCursorPosX(startPosX);
+
+  // Exibe os elementos lado a lado
   auto drawList = ImGui::GetWindowDrawList();
-
-  float elementWidth = 100.0f;  // Largura do frasco
-  float elementHeight = 100.0f; // Altura do frasco
-  float spacing = 10.0f;        // Espaçamento entre frascos
-
   for (size_t i = 0; i < m_elements.size(); ++i) {
     Element &element = m_elements[i];
     ImVec2 pos = ImGui::GetCursorScreenPos();
-
-    // Define o tamanho do "botão"
     ImVec2 size = ImVec2(elementWidth, elementHeight);
 
-    // Adiciona um botão invisível para capturar cliques
     ImGui::InvisibleButton(("Erlenmeyer" + std::to_string(i)).c_str(), size);
     if (ImGui::IsItemClicked()) {
       addToBeaker(element);
     }
 
-    // Calcula as coordenadas para um "frasco de Erlenmeyer" básico
     ImVec2 topCenter = ImVec2(pos.x + size.x / 2, pos.y);
     ImVec2 bottomLeft = ImVec2(pos.x, pos.y + size.y);
     ImVec2 bottomRight = ImVec2(pos.x + size.x, pos.y + size.y);
     ImVec2 neckLeft = ImVec2(pos.x + size.x * 0.4f, pos.y + size.y * 0.3f);
     ImVec2 neckRight = ImVec2(pos.x + size.x * 0.6f, pos.y + size.y * 0.3f);
 
-    // Desenha o frasco em duas partes: corpo e pescoço
     drawList->AddTriangleFilled(topCenter, neckLeft, neckRight,
                                 ImColor(element.color));
     drawList->AddQuadFilled(neckLeft, neckRight, bottomRight, bottomLeft,
                             ImColor(element.color));
 
-    // Desenha o símbolo do elemento sobre o frasco
     ImVec2 textSize = ImGui::CalcTextSize(element.symbol.c_str());
     ImVec2 textPos = ImVec2(pos.x + (size.x - textSize.x) / 2,
                             pos.y + (size.y - textSize.y) / 2);
     drawList->AddText(textPos, ImColor(255, 255, 255), element.symbol.c_str());
 
-    // Verifica se há espaço suficiente para colocar o próximo botão na mesma
-    // linha
-    float nextPosX = pos.x + elementWidth + spacing;
-    if (nextPosX + elementWidth > ImGui::GetWindowPos().x + appWindowWidth) {
-      ImGui::NewLine(); // Move para a próxima linha
-    } else {
-      ImGui::SameLine(); // Mantém na mesma linha
+    if (i < m_elements.size() - 1) {
+      ImGui::SameLine(); // Coloca o próximo elemento na mesma linha
+      ImGui::SetCursorPosX(startPosX + (i + 1) * (elementWidth + spacing));
     }
   }
 
-  ImGui::Separator();
+  ImGui::SetCursorPosY(
+      ImGui::GetCursorPosY() +
+      20.0f); // Ajuste para espaço entre elementos e o próximo título
 
-  // Exibir recipiente de mistura e resultado da reação
+  // Título: "Recipiente de Mistura" centralizado horizontalmente
+  ImGui::SetCursorPosX(centerX -
+                       ImGui::CalcTextSize("Recipiente de Mistura:").x / 2);
   ImGui::Text("Recipiente de Mistura:");
+
+  ImGui::Spacing(); // Espaçamento entre o título e o béquer
+
+  // Exibir o recipiente de mistura centralizado horizontalmente
+  ImGui::SetCursorPosX(centerX -
+                       75.0f); // Centraliza o béquer de 150 de largura
   displayBeaker();
 
-  // Botão para resetar a mistura
+  ImGui::Spacing(); // Espaçamento entre o béquer e o botão
+
+  // Botão Resetar Mistura centralizado horizontalmente
+  ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 210.0f);
+  ImGui::SetCursorPosX(centerX - ImGui::CalcTextSize("Resetar Mistura").x / 2 -
+                       4.0f);
   if (ImGui::Button("Resetar Mistura")) {
-    m_selectedElements.clear(); // Limpa os elementos selecionados
+    m_selectedElements.clear();
+    m_currentReaction.reset(); // Limpa a reação atual
   }
 
   ImGui::End();
@@ -102,43 +124,55 @@ void Window::onPaintUI() {
 void Window::addToBeaker(Element element) {
   if (m_selectedElements.size() < 2) {
     m_selectedElements.push_back(element);
+    checkReaction(); // Verifica a reação sempre que um elemento é adicionado
   }
 }
 
 void Window::displayBeaker() {
-  // Exibir os elementos dentro do recipiente
-  for (auto &element : m_selectedElements) {
-    ImGui::Button(element.symbol.c_str(), ImVec2(100, 100));
-  }
+  auto drawList = ImGui::GetWindowDrawList();
+  ImVec2 beakerPos = ImGui::GetCursorScreenPos();
+  ImVec2 beakerSize = ImVec2(150.0f, 200.0f);
 
-  // Se houver dois elementos, verifica a reação
-  if (m_selectedElements.size() == 2) {
-    checkReaction();
+  // Desenho do contorno do béquer
+  ImVec2 beakerTopLeft = beakerPos;
+  ImVec2 beakerBottomRight =
+      ImVec2(beakerPos.x + beakerSize.x, beakerPos.y + beakerSize.y);
+  drawList->AddRect(beakerTopLeft, beakerBottomRight, ImColor(255, 255, 255));
+
+  if (m_currentReaction) {
+    // Se houver uma reação válida, exibe o resultado no béquer
+    drawList->AddRectFilled(beakerTopLeft, beakerBottomRight,
+                            ImColor(m_currentReaction->resultColor));
+
+    ImVec2 textSize = ImGui::CalcTextSize(m_currentReaction->result.c_str());
+    ImVec2 textPos = ImVec2(beakerTopLeft.x + (beakerSize.x - textSize.x) / 2,
+                            beakerTopLeft.y + (beakerSize.y - textSize.y) / 2);
+    drawList->AddText(textPos, ImColor(255, 255, 255),
+                      m_currentReaction->result.c_str());
+  } else {
+    // Caso contrário, preenche com os elementos misturados
+    float elementHeight = beakerSize.y / m_selectedElements.size();
+    for (size_t i = 0; i < m_selectedElements.size(); ++i) {
+      Element &element = m_selectedElements[i];
+      ImVec2 elementPos =
+          ImVec2(beakerTopLeft.x, beakerTopLeft.y + i * elementHeight);
+      ImVec2 elementSize = ImVec2(beakerSize.x, elementHeight);
+      drawList->AddRectFilled(
+          elementPos,
+          ImVec2(elementPos.x + elementSize.x, elementPos.y + elementSize.y),
+          ImColor(element.color));
+    }
   }
 }
 
 void Window::checkReaction() {
   if (m_selectedElements.size() == 2) {
-    auto &el1 = m_selectedElements[0];
-    auto &el2 = m_selectedElements[1];
-
-    // Verificar se há uma reação entre os dois elementos
-    auto pair = std::make_pair(el1.symbol, el2.symbol);
-    auto reaction = reactions.find(pair);
-
-    if (reaction == reactions.end()) {
-      // Se não houver reação, mostrar mensagem de erro
-      ImGui::Text("Não há reação entre %s e %s.", el1.symbol.c_str(),
-                  el2.symbol.c_str());
+    auto it = reactions.find(
+        {m_selectedElements[0].symbol, m_selectedElements[1].symbol});
+    if (it != reactions.end()) {
+      m_currentReaction = it->second;
     } else {
-      // Mostrar o resultado da reação
-      ImGui::Text("Resultado: %s", reaction->second.result.c_str());
-      ImGui::Text("Cor: ");
-      ImGui::ColorButton("ResultColor", reaction->second.resultColor,
-                         ImGuiColorEditFlags_NoAlpha);
-
-      // Limpar os elementos após a reação
-      m_selectedElements.clear();
+      m_currentReaction.reset(); // Caso não haja reação
     }
   }
 }

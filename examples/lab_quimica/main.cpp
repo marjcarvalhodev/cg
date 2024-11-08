@@ -8,7 +8,7 @@ int main(int argc, char **argv) {
 
     Window window;
     window.setWindowSettings({.width = 2000,
-                              .height = 600,
+                              .height = 200,
                               .title = "Simulação de Laboratório Químico"});
 
     app.run(window);
