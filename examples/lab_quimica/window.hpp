@@ -3,7 +3,6 @@
 
 #include "abcgOpenGL.hpp"
 #include <array>
-#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -45,9 +44,7 @@ private:
 
   // Elementos selecionados para mistura
   std::vector<Element> m_selectedElements;
-
-  // Reação atual (opcional, caso não exista)
-  std::optional<Reaction> m_currentReaction;
+  std::optional<Reaction> m_currentReaction; // Reação atual (se houver)
 
   // Funções de interação
   void addToBeaker(Element element);
