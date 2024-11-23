@@ -1,5 +1,7 @@
 #ifndef WINDOW_HPP_
 #define WINDOW_HPP_
+#include "ModelLoader.hpp"
+#include "ShaderLoader.hpp"
 
 #include "abcgOpenGL.hpp"
 #include <array>
@@ -52,6 +54,7 @@ private:
   void displayBeaker();
   void loadReactions();
   void loadElements();
+  void add3DLabItem();
 };
 
 #endif

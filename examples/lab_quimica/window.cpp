@@ -140,3 +140,10 @@ void Window::checkReaction() {
     m_currentReaction.reset();
   }
 }
+
+void Window::add3DLabItem() {
+  auto const &assetsPath{abcg::Application::getAssetsPath()};
+
+  ModelLoader model;
+  model.loadModel(assetsPath + "models/tube.obj");
+}
