@@ -1,12 +1,12 @@
-#version 330 core
-layout(location = 0) in vec3 aPos;
-layout(location = 1) in vec3 aColor;
-out vec3 fragColor;
-uniform mat4 model;
-uniform mat4 view;
-uniform mat4 projection;
+#version 300 es
+
+layout(location = 0) in vec3 inPosition;
 
 void main() {
-    fragColor = aColor;
-    gl_Position = projection * view * model * vec4(aPos, 1.0);
+  float sinAngle = sin(0.5);
+  float cosAngle = cos(0.5);
+
+  gl_Position =
+      vec4(inPosition.x * cosAngle + inPosition.z * sinAngle, inPosition.y,
+           inPosition.z * cosAngle - inPosition.x * sinAngle, 1.0);
 }

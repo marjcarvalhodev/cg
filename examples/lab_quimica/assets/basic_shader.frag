@@ -1,7 +1,11 @@
-#version 330 core
-in vec3 fragColor;
-out vec4 FragColor;
+#version 300 es
+
+precision mediump float;
+
+out vec4 outColor;
 
 void main() {
-    FragColor = vec4(fragColor, 1.0);
+  float i = 1.0 - gl_FragCoord.z;
+
+  outColor = vec4(i);
 }

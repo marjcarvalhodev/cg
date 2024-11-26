@@ -7,8 +7,8 @@ int main(int argc, char **argv) {
     abcg::Application app(argc, argv);
 
     Window window;
-    window.setWindowSettings({.width = 2000,
-                              .height = 200,
+    window.setWindowSettings({.width = 1080,
+                              .height = 960,
                               .title = "Simulação de Laboratório Químico"});
 
     app.run(window);

@@ -1,29 +1,29 @@
 #include "window.hpp"
 #include "imgui.h"
 
+#include <glm/gtx/fast_trigonometry.hpp>
+#include <unordered_map>
+
+// Explicit specialization of std::hash for Vertex
+template <> struct std::hash<Vertex> {
+  size_t operator()(Vertex const &vertex) const noexcept {
+    auto const h1{std::hash<glm::vec3>()(vertex.position)};
+    return h1;
+  }
+};
+
 void Window::onCreate() {
-  loadElements();  // Carregar elementos químicos
-  loadReactions(); // Carregar as reações químicas
+  setup3D(); // Criar espaço 3D
+  // loadElements();  // Carregar elementos químicos
+  // loadReactions(); // Carregar as reações químicas
 }
 
-void Window::loadElements() {
-  m_elements = {{"Água", "H2O", ImVec4(0.0f, 0.5f, 1.0f, 1.0f)},
-                {"Sódio", "Na", ImVec4(0.9f, 0.5f, 0.2f, 1.0f)},
-                {"Cloro", "Cl", ImVec4(0.2f, 0.8f, 0.2f, 1.0f)},
-                {"Oxigênio", "O2", ImVec4(0.8f, 0.8f, 0.2f, 1.0f)}};
-}
-
-void Window::loadReactions() {
-  // Definindo todas as combinações de reações
-  reactions[{"Na", "Cl"}] = {"NaCl", ImVec4(1.0f, 1.0f, 0.0f, 1.0f)};
-  reactions[{"H2O", "Na"}] = {"NaOH + H2", ImVec4(1.0f, 0.0f, 0.0f, 1.0f)};
-  reactions[{"H2O", "Cl"}] = {"HCl + HClO", ImVec4(0.0f, 1.0f, 1.0f, 1.0f)};
-  reactions[{"H2O", "O2"}] = {"H2O2", ImVec4(0.5f, 0.5f, 1.0f, 1.0f)};
-  reactions[{"Na", "O2"}] = {"Na2O", ImVec4(0.5f, 0.5f, 0.5f, 1.0f)};
-  reactions[{"Cl", "O2"}] = {"Cl2O", ImVec4(0.3f, 0.6f, 1.0f, 1.0f)};
+void Window::onPaint() {
+  draw3D(); // Mostrar espaço 3D
 }
 
 void Window::onPaintUI() {
+  return;
   auto const appWindowWidth{gsl::narrow<float>(getWindowSettings().width)};
   auto const appWindowHeight{gsl::narrow<float>(getWindowSettings().height)};
 
@@ -77,6 +77,23 @@ void Window::onPaintUI() {
   }
 
   ImGui::End();
+}
+
+void Window::loadElements() {
+  m_elements = {{"Água", "H2O", ImVec4(0.0f, 0.5f, 1.0f, 1.0f)},
+                {"Sódio", "Na", ImVec4(0.9f, 0.5f, 0.2f, 1.0f)},
+                {"Cloro", "Cl", ImVec4(0.2f, 0.8f, 0.2f, 1.0f)},
+                {"Oxigênio", "O2", ImVec4(0.8f, 0.8f, 0.2f, 1.0f)}};
+}
+
+void Window::loadReactions() {
+  // Definindo todas as combinações de reações
+  reactions[{"Na", "Cl"}] = {"NaCl", ImVec4(1.0f, 1.0f, 0.0f, 1.0f)};
+  reactions[{"H2O", "Na"}] = {"NaOH + H2", ImVec4(1.0f, 0.0f, 0.0f, 1.0f)};
+  reactions[{"H2O", "Cl"}] = {"HCl + HClO", ImVec4(0.0f, 1.0f, 1.0f, 1.0f)};
+  reactions[{"H2O", "O2"}] = {"H2O2", ImVec4(0.5f, 0.5f, 1.0f, 1.0f)};
+  reactions[{"Na", "O2"}] = {"Na2O", ImVec4(0.5f, 0.5f, 0.5f, 1.0f)};
+  reactions[{"Cl", "O2"}] = {"Cl2O", ImVec4(0.3f, 0.6f, 1.0f, 1.0f)};
 }
 
 void Window::addToBeaker(Element element) {
@@ -141,9 +158,149 @@ void Window::checkReaction() {
   }
 }
 
-void Window::add3DLabItem() {
+void Window::loadModelFromFile(std::string_view path) {
+  tinyobj::ObjReader reader;
+
+  if (!reader.ParseFromFile(path.data())) {
+    if (!reader.Error().empty()) {
+      throw abcg::RuntimeError(
+          fmt::format("Failed to load model {} ({})", path, reader.Error()));
+    }
+    throw abcg::RuntimeError(fmt::format("Failed to load model {}", path));
+  }
+
+  if (!reader.Warning().empty()) {
+    fmt::print("Warning: {}\n", reader.Warning());
+  }
+
+  auto const &attributes{reader.GetAttrib()};
+  auto const &shapes{reader.GetShapes()};
+
+  m_vertices.clear();
+  m_indices.clear();
+
+  // A key:value map with key=Vertex and value=index
+  std::unordered_map<Vertex, GLuint> hash{};
+
+  // Loop over shapes
+  for (auto const &shape : shapes) {
+    // Loop over indices
+    for (auto const offset : iter::range(shape.mesh.indices.size())) {
+      // Access to vertex
+      auto const index{shape.mesh.indices.at(offset)};
+
+      // Vertex position
+      auto const startIndex{3 * index.vertex_index};
+      auto const vx{attributes.vertices.at(startIndex + 0)};
+      auto const vy{attributes.vertices.at(startIndex + 1)};
+      auto const vz{attributes.vertices.at(startIndex + 2)};
+
+      Vertex const vertex{.position = {vx, vy, vz}};
+
+      // If map doesn't contain this vertex
+      if (!hash.contains(vertex)) {
+        // Add this index (size of m_vertices)
+        hash[vertex] = m_vertices.size();
+        // Add this vertex
+        m_vertices.push_back(vertex);
+      }
+
+      m_indices.push_back(hash[vertex]);
+    }
+  }
+}
+
+void Window::standardize() {
+  // Center to origin and normalize bounds to [-1, 1]
+
+  // Get bounds
+  glm::vec3 max(std::numeric_limits<float>::lowest());
+  glm::vec3 min(std::numeric_limits<float>::max());
+  for (auto const &vertex : m_vertices) {
+    max = glm::max(max, vertex.position);
+    min = glm::min(min, vertex.position);
+  }
+
+  // Center and scale
+  auto const center{(min + max) / 2.0f};
+  auto const scaling{2.0f / glm::length(max - min)};
+  for (auto &vertex : m_vertices) {
+    vertex.position = (vertex.position - center) * scaling;
+  }
+}
+
+void Window::draw3D() {
+  // Clear color buffer and depth buffer
+  abcg::glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+  abcg::glViewport(0, 0, m_viewportSize.x, m_viewportSize.y);
+
+  abcg::glUseProgram(m_program);
+  abcg::glBindVertexArray(m_VAO);
+
+  // Draw triangles
+  abcg::glDrawElements(GL_TRIANGLES, m_verticesToDraw, GL_UNSIGNED_INT,
+                       nullptr);
+
+  abcg::glBindVertexArray(0);
+  abcg::glUseProgram(0);
+}
+
+void Window::setup3D() {
   auto const &assetsPath{abcg::Application::getAssetsPath()};
 
-  ModelLoader model;
-  model.loadModel(assetsPath + "models/tube.obj");
+  abcg::glClearColor(0, 0, 0, 1);
+
+  // Enable depth buffering
+  abcg::glEnable(GL_DEPTH_TEST);
+
+  // Create program
+  m_program =
+      abcg::createOpenGLProgram({{.source = assetsPath + "basic_shader.vert",
+                                  .stage = abcg::ShaderStage::Vertex},
+                                 {.source = assetsPath + "basic_shader.frag",
+                                  .stage = abcg::ShaderStage::Fragment}});
+
+  // Load model
+  loadModelFromFile(assetsPath + "models/tube.obj");
+  standardize();
+
+  m_verticesToDraw = m_indices.size();
+
+  // Generate VBO
+  abcg::glGenBuffers(1, &m_VBO);
+  abcg::glBindBuffer(GL_ARRAY_BUFFER, m_VBO);
+  abcg::glBufferData(GL_ARRAY_BUFFER,
+                     sizeof(m_vertices.at(0)) * m_vertices.size(),
+                     m_vertices.data(), GL_STATIC_DRAW);
+  abcg::glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+  // Generate EBO
+  abcg::glGenBuffers(1, &m_EBO);
+  abcg::glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_EBO);
+  abcg::glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                     sizeof(m_indices.at(0)) * m_indices.size(),
+                     m_indices.data(), GL_STATIC_DRAW);
+  abcg::glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+  // Create VAO
+  abcg::glGenVertexArrays(1, &m_VAO);
+
+  // Bind vertex attributes to current VAO
+  abcg::glBindVertexArray(m_VAO);
+
+  abcg::glBindBuffer(GL_ARRAY_BUFFER, m_VBO);
+  auto const positionAttribute{
+      abcg::glGetAttribLocation(m_program, "inPosition")};
+  abcg::glEnableVertexAttribArray(positionAttribute);
+  abcg::glVertexAttribPointer(positionAttribute, 3, GL_FLOAT, GL_FALSE,
+                              sizeof(Vertex), nullptr);
+  abcg::glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+  abcg::glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_EBO);
+
+  // End of binding to current VAO
+  abcg::glBindVertexArray(0);
 }
+
+// eof

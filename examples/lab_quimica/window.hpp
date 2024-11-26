@@ -1,7 +1,5 @@
 #ifndef WINDOW_HPP_
 #define WINDOW_HPP_
-#include "ModelLoader.hpp"
-#include "ShaderLoader.hpp"
 
 #include "abcgOpenGL.hpp"
 #include <array>
@@ -9,6 +7,12 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
+struct Vertex {
+  glm::vec3 position{};
+
+  friend bool operator==(Vertex const &, Vertex const &) = default;
+};
 
 // Hash personalizado para pares de elementos
 struct pair_hash {
@@ -34,6 +38,7 @@ struct Reaction {
 class Window : public abcg::OpenGLWindow {
 protected:
   void onCreate() override;
+  void onPaint() override;
   void onPaintUI() override;
 
 private:
@@ -55,6 +60,25 @@ private:
   void loadReactions();
   void loadElements();
   void add3DLabItem();
+
+  // Tentando criar o loader de modelo 3D
+  glm::ivec2 m_viewportSize{};
+
+  GLuint m_VAO{};
+  GLuint m_VBO{};
+  GLuint m_EBO{};
+  GLuint m_program{};
+
+  float m_angle{};
+  int m_verticesToDraw{};
+
+  std::vector<Vertex> m_vertices;
+  std::vector<GLuint> m_indices;
+
+  void loadModelFromFile(std::string_view path);
+  void standardize();
+  void setup3D();
+  void draw3D();
 };
 
 #endif
