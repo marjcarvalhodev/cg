@@ -19,6 +19,7 @@ void Window::onCreate() {
 }
 
 void Window::onPaint() {
+  processInput();
   draw3D(); // Mostrar espaço 3D
 }
 
@@ -84,6 +85,10 @@ void Window::loadElements() {
                 {"Sódio", "Na", ImVec4(0.9f, 0.5f, 0.2f, 1.0f)},
                 {"Cloro", "Cl", ImVec4(0.2f, 0.8f, 0.2f, 1.0f)},
                 {"Oxigênio", "O2", ImVec4(0.8f, 0.8f, 0.2f, 1.0f)}};
+}
+
+void Window::add3DLabItem()
+{
 }
 
 void Window::loadReactions() {
@@ -303,4 +308,70 @@ void Window::setup3D() {
   abcg::glBindVertexArray(0);
 }
 
+void Window::snapCameraToModel() {
+    // Calculate the bounding box of the model
+    glm::vec3 minPoint = glm::vec3(std::numeric_limits<float>::max());
+    glm::vec3 maxPoint = glm::vec3(std::numeric_limits<float>::lowest());
+
+    for (const auto& vertex : m_vertices) {
+        fmt::print("cade boneco: {}\n", m_vertices.size());
+
+        minPoint = glm::min(minPoint, vertex.position);
+        maxPoint = glm::max(maxPoint, vertex.position);
+    }
+
+    // Compute the center of the model
+    glm::vec3 modelCenter = (minPoint + maxPoint) * 0.5f;
+
+    // Compute the size of the model
+    glm::vec3 modelSize = maxPoint - minPoint;
+    float modelRadius = glm::length(modelSize) / 2.0f;
+
+    // Set the camera distance to be large enough to fit the model
+    float cameraDistance = modelRadius * 2.0f; // Adjust this multiplier as needed
+
+    // Set camera position behind the model (along the Z-axis)
+    cameraPos = modelCenter + glm::vec3(0.0f, 0.0f, cameraDistance);
+    cameraTarget = modelCenter;
+
+    // Update the view matrix
+    viewMatrix = glm::lookAt(cameraPos, cameraTarget, cameraUp);
+}
+
+void Window::processInput() {
+    // SDL event handling - check if the window is open
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+        if (event.type == SDL_QUIT) {
+            // Handle window close event
+        }
+    }
+
+    const Uint8* state = SDL_GetKeyboardState(nullptr);  // Get current key states
+
+        // If 'N' key is pressed, snap camera to the model
+    if (state[SDL_SCANCODE_N]) {
+        snapCameraToModel();
+    }
+
+    // Move camera forward (W key)
+    if (state[SDL_SCANCODE_W]) {
+        cameraPos += cameraSpeed * glm::normalize(cameraTarget - cameraPos);
+    }
+
+    // Move camera backward (S key)
+    if (state[SDL_SCANCODE_S]) {
+        cameraPos -= cameraSpeed * glm::normalize(cameraTarget - cameraPos);
+    }
+
+    // Move camera left (A key)
+    if (state[SDL_SCANCODE_A]) {
+        cameraPos -= glm::normalize(glm::cross(cameraTarget - cameraPos, cameraUp)) * cameraSpeed;
+    }
+
+    // Move camera right (D key)
+    if (state[SDL_SCANCODE_D]) {
+        cameraPos += glm::normalize(glm::cross(cameraTarget - cameraPos, cameraUp)) * cameraSpeed;
+    }
+}
 // eof
